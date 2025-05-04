@@ -1,6 +1,7 @@
 # Python-related
 *.pyc
 **/__pycache__/
+.idea
 
 # Media Files
 *.wav
