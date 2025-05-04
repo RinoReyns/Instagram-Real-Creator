@@ -1,14 +1,21 @@
+from __future__ import annotations
+
+import json
+import os
+
 import openai
 from dotenv import load_dotenv
-import os
-import json
 
 load_dotenv()
 
-openai.api_key = os.getenv("OPENAI_API")
+
+
+openai.api_key = os.environ['OPENAI_API']
 
 if not openai.api_key:
-    raise ValueError("API key not found. Make sure it is defined in the .env file.")
+    raise ValueError(
+        'API key not found. Make sure it is defined in the .env file.',
+    )
 
 
 # Function to extract start and end times
@@ -18,8 +25,8 @@ def extract_times(json_string):
         data = json.loads(json_string)
 
         # Extract start and end times as floats
-        start_time = float(data[0]["start"])
-        end_time = float(data[0]["end"])
+        start_time = float(data[0]['start'])
+        end_time = float(data[0]['end'])
 
         # Convert to integers
         start_time_int = int(start_time)
@@ -34,7 +41,7 @@ system = """
 
 Baised on the Transcription user provides with start and end, Highilight the main parts in less then 1 min which can be directly converted into a short. highlight it such that its intresting and also keep the time staps for the clip to start and end. only select a continues Part of the video
 
-Follow this Format and return in valid json 
+Follow this Format and return in valid json
 [{
 start: "Start time of the clip",
 content: "Highlight Text",
@@ -54,26 +61,31 @@ Any Example
 
 
 def GetHighlight(Transcription):
-    print("Getting Highlight from Transcription ")
+    print('Getting Highlight from Transcription ')
     try:
-
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-2024-05-13",
+        # response = openai.chat.completions.create(
+        #     model="gpt-4o-2024-05-13",
+        #     messages=[
+        #         {'role': 'user', 'content': Transcription + system},
+        #     ],
+        # )
+        response = openai.chat.completions.create(
+            model='gpt-4o-2024-05-13',
             temperature=0.7,
             messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": Transcription + system},
+                {'role': 'system', 'content': system},
+                {'role': 'user', 'content': Transcription + system},
             ],
         )
 
         json_string = response.choices[0].message.content
-        json_string = json_string.replace("json", "")
-        json_string = json_string.replace("```", "")
+        json_string = json_string.replace('json', '')
+        json_string = json_string.replace('```', '')
         # print(json_string)
         Start, End = extract_times(json_string)
         if Start == End:
-            Ask = input("Error - Get Highlights again (y/n) -> ").lower()
-            if Ask == "y":
+            Ask = input('Error - Get Highlights again (y/n) -> ').lower()
+            if Ask == 'y':
                 Start, End = GetHighlight(Transcription)
         return Start, End
     except Exception as e:
@@ -81,5 +93,5 @@ def GetHighlight(Transcription):
         return 0, 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     print(GetHighlight(User))
