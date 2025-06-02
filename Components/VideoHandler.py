@@ -37,7 +37,7 @@ class VideoHandler:
             print(f"Downloaded video and audio files successfully! at {vid}")
         if self._option_id == VideoSource.LOCAL.value:
             if not os.path.exists(source_string):
-                raise ValueError (f"Path doesn't exists")
+                raise ValueError(f"Path doesn't exists")
             return source_string
 
         raise ValueError(f"Unsupported option id {self._option_id}")
