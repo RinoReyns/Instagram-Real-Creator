@@ -100,8 +100,8 @@ def main():
     # TODO:
     # first resize all images to the same sizes, than generate wideo
     args = parser.parse_args()
-    # folder_path = "C:\\Users\\RinoReyns\\Desktop\\Smietki\\Projekty\\AI-Youtube-Shorts-Generator\\To_use"
-    folder_path = 'C:\\Users\\RinoReyns\\Desktop\\Smietki\\Projekty\\AI-Youtube-Shorts-Generator\\To_use\\videoOnly'
+
+    folder_path = ""
     output_folder = os.path.join(folder_path, 'output')
     os.makedirs(output_folder, exist_ok=True)
     for image_path in os.listdir(folder_path):
@@ -197,7 +197,7 @@ def create_slideshow_reel(photo_paths, output_path='slideshow_reel.mp4', duratio
 
 if __name__ == '__main__':
     # # main()
-    #  clip_with_audio = VideoFileClip("C:\\Users\\RinoReyns\\Desktop\\Smietki\\Projekty\\AI-Youtube-Shorts-Generator\\To_use\\videoOnly\\output1.mp4")
+
     #
     #  audio = AudioFileClip("../audio_rolka.wav",
     #                                     buffersize=200000,
@@ -207,14 +207,14 @@ if __name__ == '__main__':
     #  combined_clip = clip_with_audio.set_audio(audio)
     #
     #  combined_clip.write_videofile(
-    #     "C:\\Users\\RinoReyns\\Desktop\\Smietki\\Projekty\\AI-Youtube-Shorts-Generator\\To_use\\videoOnly\\output1_audio.mp4", audio_codec='aac',  preset='placebo', bitrate='3000k',
+    #     , audio_codec='aac',  preset='placebo', bitrate='3000k',
     # )
     import pathlib
 
     photos_list = [
         filepath.absolute() for filepath in pathlib.Path(
-            'C:\\Users\\RinoReyns\\Desktop\\Smietki\\Projekty\\AI-Youtube-Shorts-Generator\\To_use\\photo',
+
         ).glob('**/*')
     ]
     create_slideshow_reel(photos_list, 'reel.mp4', duration_per_photo=3)
-    # audio_path="C:\\Users\\RinoReyns\\Desktop\\Smietki\\Projekty\\AI-Youtube-Shorts-Generator\\audio_rolka.wav")
+
