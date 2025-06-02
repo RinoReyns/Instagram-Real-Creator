@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import cv2
-import numpy as np
 from moviepy.editor import *
 
 from Components.Speaker import detect_faces_and_speakers
@@ -44,9 +43,7 @@ def crop_to_vertical(input_video_path, output_video_path):
         output_video_path, fourcc, fps,
         (vertical_width, vertical_height),
     )
-    global Fps
-    Fps = fps
-    print(fps)
+
     count = 0
     for _ in range(total_frames):
         ret, frame = cap.read()
@@ -58,17 +55,16 @@ def crop_to_vertical(input_video_path, output_video_path):
             gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30),
         )
         if len(faces) > -1:
-            if len(faces) == 0:
-                (x, y, w, h) = Frames[count]
-
-            # (x, y, w, h) = faces[0]
             try:
+                if len(faces) == 0:
+                    (x, y, w, h) = Frames[count]
                 # check if face 1 is active
                 (X, Y, W, H) = Frames[count]
             except Exception as e:
                 print(e)
-                (X, Y, W, H) = Frames[count][0]
-                print(Frames[count][0])
+                (x, y, w, h) = Frames[0]
+                (X, Y, W, H) = Frames[0]
+                print(Frames[0])
 
             for f in faces:
                 x1, y1, w1, h1 = f
@@ -126,9 +122,10 @@ def crop_to_vertical(input_video_path, output_video_path):
         'Cropping complete. The video has been saved to',
         output_video_path, count,
     )
+    return fps
 
 
-def combine_videos(video_with_audio, video_without_audio, output_filename):
+def combine_videos(video_with_audio, video_without_audio, output_filename, fps=30):
     try:
         # Load video clips
         clip_with_audio = VideoFileClip(video_with_audio)
@@ -138,9 +135,8 @@ def combine_videos(video_with_audio, video_without_audio, output_filename):
 
         combined_clip = clip_without_audio.set_audio(audio)
 
-        global Fps
         combined_clip.write_videofile(
-            output_filename, codec='libx264', audio_codec='aac', fps=Fps, preset='medium', bitrate='3000k',
+            output_filename, codec='libx264', audio_codec='aac', fps=fps, preset='medium', bitrate='3000k',
         )
         print(f"Combined video saved successfully as {output_filename}")
 

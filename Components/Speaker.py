@@ -66,7 +66,7 @@ def detect_faces_and_speakers(input_video_path, output_video_path):
     audio_generator = process_audio_frame(
         audio_data, sample_rate, frame_duration_ms,
     )
-
+    x = None
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -127,17 +127,18 @@ def detect_faces_and_speakers(input_video_path, output_video_path):
                 if lip_distance >= MaxDif:
                     break
 
-        Frames.append([x, y, x1, y1])
+        if x is not None:
+            Frames.append([x, y, x1, y1])
 
         out.write(frame)
-        cv2.imshow('Frame', frame)
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        # cv2.imshow('Frame', frame)
+        #
+        # if cv2.waitKey(1) & 0xFF == ord('q'):
+        #     break
 
     cap.release()
     out.release()
-    cv2.destroyAllWindows()
+    # cv2.destroyAllWindows()
     os.remove(temp_audio_path)
 
 
