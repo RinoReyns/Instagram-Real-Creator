@@ -3,7 +3,7 @@ from __future__ import annotations
 import os.path
 from enum import Enum
 
-from Components.YoutubeDownloader import download_youtube_video
+from components.YoutubeDownloader import download_youtube_video
 
 
 class VideoSource(Enum):
@@ -30,14 +30,14 @@ class VideoHandler:
     def extract_video(self, source_string) -> str:
         if self._option_id == VideoSource.YOU_TUBE.value:
             vid = download_youtube_video(source_string)
-            if vid in [None, '']:
-                raise ValueError('Unable to Download the video')
+            if vid in [None, ""]:
+                raise ValueError("Unable to Download the video")
 
-            vid = vid.replace('.webm', '.mp4')
+            vid = vid.replace(".webm", ".mp4")
             print(f"Downloaded video and audio files successfully! at {vid}")
         if self._option_id == VideoSource.LOCAL.value:
             if not os.path.exists(source_string):
-                raise ValueError(f"Path doesn't exists")
+                raise ValueError("Path doesn't exists")
             return source_string
 
         raise ValueError(f"Unsupported option id {self._option_id}")
