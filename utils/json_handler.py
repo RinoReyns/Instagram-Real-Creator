@@ -6,7 +6,7 @@ import logging
 import os
 from dataclasses import asdict, fields
 
-from utils.data_structures import MediaClip, VisionDataTypeEnum
+from utils.data_structures import MediaClip, VisionDataTypeEnum, TransitionTypeEnum
 
 # Configure logger
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(message)s")
@@ -54,7 +54,7 @@ def create_config_from_folder(folder_path):
                 config[filename] = MediaClip(
                     start=0,
                     end=10,
-                    crossfade=1,
+                    transition=TransitionTypeEnum(0),
                     type=file_type,
                     video_resampling=0,
                 )
@@ -84,7 +84,7 @@ def media_clips_from_json(filepath: str) -> dict[str, MediaClip]:
         key: MediaClip(
             start=value[fields(MediaClip)[0].name],
             end=value[fields(MediaClip)[1].name],
-            crossfade=value[fields(MediaClip)[2].name],
+            transition=TransitionTypeEnum(value[fields(MediaClip)[2].name]),
             # Convert string to Enum
             type=VisionDataTypeEnum(value[fields(MediaClip)[3].name]),
             video_resampling=value[fields(MediaClip)[4].name],

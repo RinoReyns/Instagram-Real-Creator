@@ -4,48 +4,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 from PIL import Image
-
-from moviepy.video.VideoClip import ColorClip
-from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
-
-
-def resize_and_center(clip, target_size=(1080, 1920)):
-    target_w, target_h = target_size
-    clip_w, clip_h = clip.size
-    clip_ar = clip_w / clip_h
-    target_ar = target_w / target_h
-
-    # Determine new size to preserve aspect ratio
-    if clip_ar > target_ar:
-        # Too wide, match width and scale height
-        new_w = target_w
-        new_h = int(target_w / clip_ar)
-    else:
-        # Too tall, match height and scale width
-        new_h = target_h
-        new_w = int(target_h * clip_ar)
-
-    # Now actually resize the clip
-    resized_clip = clip.resize(newsize=(new_w, new_h))
-
-    # Create a background (black)
-    background = ColorClip(
-        size=target_size,
-        color=(
-            0,
-            0,
-            0,
-        ),
-        duration=clip.duration,
-    )
-
-    # Overlay the resized clip in the center of the background
-    composed = CompositeVideoClip(
-        [background, resized_clip.set_position("center")],
-        size=target_size,
-    )
-
-    return composed.set_duration(clip.duration).set_audio(resized_clip.audio)
+import subprocess
 
 
 def format_photo_to_vertical(photo_path, reel_size=(1080, 1920)):
@@ -67,3 +26,53 @@ def format_photo_to_vertical(photo_path, reel_size=(1080, 1920)):
     bg_pil.paste(foreground, offset)
 
     return np.array(bg_pil)
+
+
+def has_nvenc_support():
+    try:
+        # Run ffmpeg -encoders and capture output
+        result = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-encoders"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        encoders = result.stdout.lower()
+        # Check for NVENC encoders
+        return "h264_nvenc" in encoders or "hevc_nvenc" in encoders
+    except FileNotFoundError:
+        print("FFmpeg is not installed or not found in PATH.")
+        return False
+    except subprocess.CalledProcessError as e:
+        print("FFmpeg error:", e)
+        return False
+
+
+def has_nvidia_gpu():
+    try:
+        result = subprocess.run(
+            ["nvidia-smi"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+        )
+        # Print basic GPU info (optional)
+        print("🖥️ NVIDIA GPU detected:\n", result.stdout.split("\n")[2])
+        return True
+    except FileNotFoundError:
+        print("⚠️ 'nvidia-smi' not found. Is the NVIDIA driver installed?")
+    except subprocess.CalledProcessError as e:
+        print("❌ 'nvidia-smi' failed to run. Error:\n", e.stderr)
+    return False
+
+
+def get_codec():
+    if has_nvenc_support() and has_nvidia_gpu():
+        codec = "h264_nvenc"
+        print("✅ NVENC GPU acceleration is available.")
+    else:
+        codec = "libx264"
+        # codec = "h264_qsv"
+        print("⚠️ Falling back to CPU encoding.")
+    return codec
