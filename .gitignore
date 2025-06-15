@@ -15,3 +15,6 @@ venv/
 
 # Environment variables
 .env
+
+*.json
+*video_test

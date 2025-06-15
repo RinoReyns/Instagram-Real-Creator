@@ -4,22 +4,24 @@ import argparse
 import json
 import logging
 import os
+from dataclasses import asdict, fields
+
+from utils.data_structures import MediaClip, VisionDataTypeEnum
 
 # Configure logger
-logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(message)s")
 logger = logging.getLogger(__name__)
 
 # File extensions for type detection
-VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
-PHOTO_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.gif'}
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv"}
+PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".gif"}
 
 
 # Path to your JSON file
 def pars_config(file_path):
     # Load JSON and validate structure
     try:
-        with open(file_path, encoding='utf-8') as file:
-            data = json.load(file)
+        data = media_clips_from_json(file_path)
         logger.info(f"Loaded JSON file: {file_path}")
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
@@ -28,38 +30,16 @@ def pars_config(file_path):
         logger.error(f"Error decoding JSON: {e}")
         raise
 
-    # Required keys for each file entry
-    required_keys = {'start', 'end', 'crossfade', 'type'}
-    valid_types = {'video', 'photo'}
-
-    # Validate each entry
-    for file_path_key, properties in data.items():
-        if not isinstance(properties, dict):
-            raise ValueError(
-                f"Entry for '{file_path_key}' is not a dictionary.",
-            )
-
-        missing_keys = required_keys - properties.keys()
-        if missing_keys:
-            raise ValueError(
-                f"Missing keys in '{file_path_key}': {missing_keys}",
-            )
-
-        if properties['type'] not in valid_types:
-            raise ValueError(
-                f"Invalid type in '{file_path_key}': {properties['type']}",
-            )
-
-    logger.info('JSON structure is valid.')
+    logger.info("JSON structure is valid.")
     return data
 
 
 def detect_type(filename):
     ext = os.path.splitext(filename)[1].lower()
     if ext in VIDEO_EXTENSIONS:
-        return 'video'
+        return VisionDataTypeEnum.VIDEO
     elif ext in PHOTO_EXTENSIONS:
-        return 'photo'
+        return VisionDataTypeEnum.PHOTO
     else:
         return None
 
@@ -71,38 +51,68 @@ def create_config_from_folder(folder_path):
         if os.path.isfile(full_path):
             file_type = detect_type(filename)
             if file_type:
-                config[filename] = {
-                    'start': 0,
-                    'end': 10,
-                    'crossfade': 1,
-                    'type': file_type,
-                    'video_resampling': 0,
-                }
+                config[filename] = MediaClip(
+                    start=0,
+                    end=10,
+                    crossfade=1,
+                    type=file_type,
+                    video_resampling=0,
+                )
             else:
                 logger.warning(f"Skipped unsupported file type: {filename}")
     return config
 
 
+def media_clips_to_json(data: dict[str, MediaClip], filepath: str):
+    json_ready = {
+        key: {
+            **asdict(clip),
+            "type": clip.type.value,  # Serialize Enum to string
+        }
+        for key, clip in data.items()
+    }
+
+    with open(filepath, "w") as f:
+        json.dump(json_ready, f, indent=4)
+
+
+def media_clips_from_json(filepath: str) -> dict[str, MediaClip]:
+    with open(filepath) as f:
+        raw_data = json.load(f)
+
+    return {
+        key: MediaClip(
+            start=value[fields(MediaClip)[0].name],
+            end=value[fields(MediaClip)[1].name],
+            crossfade=value[fields(MediaClip)[2].name],
+            # Convert string to Enum
+            type=VisionDataTypeEnum(value[fields(MediaClip)[3].name]),
+            video_resampling=value[fields(MediaClip)[4].name],
+        )
+        for key, value in raw_data.items()
+    }
+
+
 def json_template_generator():
     # Argument parser setup
     parser = argparse.ArgumentParser(
-        description='Generate JSON config from a folder of media files.',
+        description="Generate JSON config from a folder of media files.",
     )
     parser.add_argument(
-        '--folder', required=True, type=str,
-        help='Path to the folder containing media files',
+        "--folder",
+        required=True,
+        type=str,
+        help="Path to the folder containing media files",
     )
     parser.add_argument(
-        '--output', required=True, type=str,
-        help='Path to save the generated JSON config file',
+        "--output",
+        required=True,
+        type=str,
+        help="Path to save the generated JSON config file",
     )
     args = parser.parse_args()
 
     # Generate config
     logger.info(f"Scanning folder: {args.folder}")
     config = create_config_from_folder(args.folder)
-
-    # Save config
-    with open(args.output, 'w', encoding='utf-8') as f:
-        json.dump(config, f, indent=4)
-    logger.info(f"✅ Config saved to {args.output}")
+    media_clips_to_json(config, args.output)

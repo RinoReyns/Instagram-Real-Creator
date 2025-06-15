@@ -13,8 +13,8 @@ def extract_times(json_string):
         data = json.loads(json_string)
 
         # Extract start and end times as floats
-        start_time = float(data[0]['start'])
-        end_time = float(data[0]['end'])
+        start_time = float(data[0]["start"])
+        end_time = float(data[0]["end"])
 
         # Convert to integers
         start_time_int = int(start_time)
@@ -50,25 +50,24 @@ Any Example
 
 
 def GetHighlight(Transcription):
-    print('Getting Highlight from Transcription ')
+    print("Getting Highlight from Transcription ")
     try:
-
         response = ollama.chat(
-            model='llama3.2',
+            model="llama3.2",
             messages=[
-                {'role': 'system', 'content': system},
-                {'role': 'user', 'content': Transcription + system},
+                {"role": "system", "content": system},
+                {"role": "user", "content": Transcription + system},
             ],
         )
 
-        json_string = response['message'].content
-        json_string = json_string.replace('json', '')
-        json_string = json_string.replace('```', '')
+        json_string = response["message"].content
+        json_string = json_string.replace("json", "")
+        json_string = json_string.replace("```", "")
         # print(json_string)
         Start, End = extract_times(json_string)
         if Start == End:
-            Ask = input('Error - Get Highlights again (y/n) -> ').lower()
-            if Ask == 'y':
+            Ask = input("Error - Get Highlights again (y/n) -> ").lower()
+            if Ask == "y":
                 Start, End = GetHighlight(Transcription)
         return Start, End
     except Exception as e:
@@ -76,5 +75,5 @@ def GetHighlight(Transcription):
         return 0, 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print(GetHighlight(User))

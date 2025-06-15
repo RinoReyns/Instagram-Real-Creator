@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
+
 # Face Detection function
 
 
 def detect_faces(video_file):
     face_cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + 'haarcascade_frontalface_default.xml',
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml",
     )
 
     # Load the video
@@ -21,7 +22,10 @@ def detect_faces(video_file):
         if ret:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             detected_faces = face_cascade.detectMultiScale(
-                gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30),
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(30, 30),
             )
 
             # Iterate through the detected faces
@@ -61,9 +65,12 @@ def crop_video(faces, input_file, output_file):
             target_width = int(target_height * VERTICAL_RATIO)
 
             # Create a VideoWriter object to save the output video
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             output_video = cv2.VideoWriter(
-                output_file, fourcc, 30.0, (target_width, target_height),
+                output_file,
+                fourcc,
+                30.0,
+                (target_width, target_height),
             )
 
             # Loop through each frame of the input video
@@ -91,7 +98,8 @@ def crop_video(faces, input_file, output_file):
 
                     # Resize the cropped frame to the target dimensions
                     resized_frame = cv2.resize(
-                        cropped_frame, (target_width, target_height),
+                        cropped_frame,
+                        (target_width, target_height),
                     )
 
                     # Write the resized frame to the output video
@@ -100,18 +108,18 @@ def crop_video(faces, input_file, output_file):
             cap.release()
             output_video.release()
 
-            print('Video cropped successfully.')
+            print("Video cropped successfully.")
         else:
-            print('No faces detected in the video.')
+            print("No faces detected in the video.")
     except Exception as e:
         print(f"Error during video cropping: {str(e)}")
 
     return None
 
 
-if __name__ == '__main__':
-    input = r'Short.mp4'
+if __name__ == "__main__":
+    input = r"Short.mp4"
     faces = detect_faces(input)
     print(faces)
-    crop_video(faces, input, 'Cropped.mp4')
-    print('DONE')
+    crop_video(faces, input, "Cropped.mp4")
+    print("DONE")
