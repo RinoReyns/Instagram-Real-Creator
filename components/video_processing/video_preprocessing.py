@@ -2,7 +2,7 @@ import os
 import logging
 import subprocess
 import tempfile
-from utils.data_structures import VisionDataTypeEnum, MediaClip
+from utils.data_structures import VisionDataTypeEnum, MediaClip, LoadedVideo
 from sympy import floor
 
 from moviepy.editor import (
@@ -16,8 +16,9 @@ from components.video_processing.video_processing_utils import format_photo_to_v
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(message)s")
 
 
-class VideoProcessing:
+class VideoPreprocessing:
     INSTAGRAM_RESOLUTION = (1080, 1920)
+    INSTAGRAM_FPS = 30
 
     def __init__(self):
         self.cfr_cache = {}  # {original_path: converted_path}
@@ -127,12 +128,12 @@ class VideoProcessing:
             self.logger.error(f"ffprobe failed on {video_path}: {e}")
             return False, None
 
-    def process_entry(self, file_path, entry: MediaClip, media_dir):
+    def process_entry(self, file_path, entry: MediaClip, media_dir) -> LoadedVideo:
         full_path = os.path.join(media_dir, file_path)
         media_type = entry.type
         start = entry.start
         end = entry.end
-        crossfade = entry.crossfade
+        loaded_video = LoadedVideo(transition=entry.transition)
 
         if media_type == VisionDataTypeEnum.VIDEO.value:
             # Detect and convert VFR to CFR
@@ -159,5 +160,5 @@ class VideoProcessing:
         else:
             raise ValueError(f"Unsupported media type: {media_type}")
 
-        clip = clip.set_duration(end - start)
-        return clip
+        loaded_video.clip = clip.set_duration(end - start).set_fps(self.INSTAGRAM_FPS)
+        return loaded_video
