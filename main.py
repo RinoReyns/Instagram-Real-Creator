@@ -15,7 +15,7 @@ MAX_DURATION = 90  # seconds
 GENERATE_JSON = 0
 
 
-def create_instagram_reel(config_file, media_dir, output_path):
+def create_instagram_reel(config_file, media_dir, output_path, preview=False):
     video_preprocessing = VideoPreprocessing()
     video_preprocessing.cleanup_temp_files()
     clips = []
@@ -37,7 +37,10 @@ def create_instagram_reel(config_file, media_dir, output_path):
         logger.info("No valid clips to process.")
         return
     video_postprocessing = VideoPostProcessing()
-    video_postprocessing.run(output_path, clips)
+    if preview:
+        video_postprocessing.preview(clips)
+    else:
+        video_postprocessing.final_render(output_path, clips)
     video_preprocessing.cleanup_temp_files()
 
     # TODO:
