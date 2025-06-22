@@ -6,7 +6,7 @@ import threading
 import tkinter as tk
 from contextlib import redirect_stderr, redirect_stdout
 from tkinter import filedialog, messagebox, scrolledtext, ttk
-
+from utils.gui_utils import format_time
 import ttkbootstrap as ttkb
 
 from components.gui_components.text_handler import TextRedirector, TextWidgetHandler
@@ -14,13 +14,16 @@ from main import create_instagram_reel
 from utils.data_structures import VisionDataTypeEnum
 from utils.json_handler import media_clips_to_json, pars_config
 
+import cv2
+from PIL import Image, ImageTk
+
 # Optional: Better theming
 ThemedTk = ttkb.Window
 
 
 class InstagramReelCreatorGUI:
     MOVE_PIXEL = 5
-    INITIAL_HEIGHT = 1000
+    INITIAL_HEIGHT = 1200
     INITIAL_WIDTH = 1600
     PADDING_10 = 10
     MIN_TIMELINE_ELEMENT_WIDTH = 20
@@ -28,21 +31,62 @@ class InstagramReelCreatorGUI:
     TIMELINE_END_STR = "end"
     TIMELINE_BOX_HEIGHT = 120
     GRID_LENGTH_IN_SEC = 90
+    ZERO_OFFSET = 0
+    PREVIEW_WIDTH = 240
+    PREVIEW_HEIGHT = 320
+    PREVIEW_FPS = 30
+    MAIN_WINDOW_Y_SHIFT = 50
 
     def __init__(self, root):
         self.root = root
         self.root.title("Instagram Reel Creator")
-        self.root.geometry(f"{self.INITIAL_WIDTH}x{self.INITIAL_HEIGHT}")
-
+        self.center_window()
         self.config_path = tk.StringVar()
         self.media_dir = tk.StringVar()
         self.convert_cfr = tk.BooleanVar(value=True)
         self.selected_box_id = None
         self.pixels_per_second = 50
         self.timeline_data = {}
+        # Preview
+        self.preview_paused = True
+        self.user_seeking = False
+        self.frame_preview = None
+        self.frames = []
+        self.frame_timestamps = []
+        self.current_frame_index = 0
+        self.preview_reset()
+        ######
         self.build_ui()
 
+    def center_window(self):
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width // 2) - (self.INITIAL_WIDTH // 2)
+        y = (screen_height // 2) - (self.INITIAL_HEIGHT // 2) - self.MAIN_WINDOW_Y_SHIFT
+        self.root.geometry(f"{self.INITIAL_WIDTH}x{self.INITIAL_HEIGHT}+{x}+{y}")
+
     def build_ui(self):
+        self.top_frame()
+        self.controls_frame()
+        self.preview_frame()
+        self.create_timeline_frame()
+
+        # Output log (now below timeline)
+        ttk.Label(self.root, text="Log Output:").pack(
+            anchor="w",
+            padx=self.PADDING_10,
+        )
+        self.log_output = scrolledtext.ScrolledText(self.root, height=15)
+        self.log_output.pack(
+            fill="both",
+            expand=True,
+            padx=self.PADDING_10,
+            pady=5,
+        )
+        self.root.bind("<Left>", self.move_selected_left)
+        self.root.bind("<Right>", self.move_selected_right)
+
+    def top_frame(self):
         # CONFIG selection
         frame_top = ttk.LabelFrame(
             self.root,
@@ -83,6 +127,7 @@ class InstagramReelCreatorGUI:
             command=self.select_media_dir,
         ).grid(row=1, column=2)
 
+    def controls_frame(self):
         # Controls
         frame_controls = ttk.Frame(self.root)
         frame_controls.pack(fill="x", padx=self.PADDING_10, pady=5)
@@ -94,6 +139,11 @@ class InstagramReelCreatorGUI:
         ).pack(side="left", padx=5)
         ttk.Button(
             frame_controls,
+            text="Create Reel Preview",
+            command=self.render_video_preview,
+        ).pack(side="left", padx=5)
+        ttk.Button(
+            frame_controls,
             text="Save Timeline",
             command=self.save_updated_config,
         ).pack(side="left", padx=5)
@@ -101,8 +151,34 @@ class InstagramReelCreatorGUI:
             frame_controls,
             text="Exit",
             command=self.root.quit,
-        ).pack(side="right", padx=5)
+        ).pack(side="left", padx=5)
 
+    def preview_frame(self):
+        self.frame_preview = ttk.LabelFrame(
+            self.root,
+            text="Video Preview",
+            padding=self.PADDING_10,
+        )
+        self.frame_preview.pack(fill="x", padx=self.PADDING_10, pady=self.PADDING_10)
+
+        self.preview_canvas = tk.Canvas(
+            self.frame_preview,
+            width=self.PREVIEW_WIDTH,
+            height=self.PREVIEW_HEIGHT,
+            bg="black",
+        )
+        self.preview_canvas.pack(side="left", padx=10)
+        bottom_frame = ttk.Frame(self.frame_preview)
+        bottom_frame.pack(side="bottom", fill="x")
+
+        self.preview_time_label = ttk.Label(self.frame_preview, text="00:00 / 00:00")
+        self.preview_time_label.pack(side="bottom", pady=(2, 0))
+        self.play_pause_button = ttk.Button(
+            self.frame_preview, text="Play", command=self.toggle_play_pause
+        )
+        self.play_pause_button.pack(side="bottom", pady=5)
+
+    def create_timeline_frame(self):
         # Timeline (move this above log_output)
         self.timeline_frame = ttk.LabelFrame(self.root, text="Timeline")
         self.timeline_frame.pack(
@@ -112,30 +188,38 @@ class InstagramReelCreatorGUI:
         )
 
         self.canvas = tk.Canvas(self.timeline_frame, height=200, bg="#fafafa")
-        self.scrollbar = ttk.Scrollbar(
+        scrollbar = ttk.Scrollbar(
             self.timeline_frame,
             orient="horizontal",
             command=self.canvas.xview,
         )
-        self.canvas.configure(xscrollcommand=self.scrollbar.set)
-
+        self.canvas.configure(xscrollcommand=scrollbar.set)
         self.canvas.pack(side="top", fill="x")
-        self.scrollbar.pack(side="bottom", fill="x")
+        scrollbar.pack(side="bottom", fill="x")
 
-        # Output log (now below timeline)
-        ttk.Label(self.root, text="Log Output:").pack(
-            anchor="w",
-            padx=self.PADDING_10,
-        )
-        self.log_output = scrolledtext.ScrolledText(self.root, height=15)
-        self.log_output.pack(
-            fill="both",
-            expand=True,
-            padx=self.PADDING_10,
-            pady=5,
-        )
-        self.root.bind("<Left>", self.move_selected_left)
-        self.root.bind("<Right>", self.move_selected_right)
+    def create_timeline_grid(self):
+        # Draw grid
+        for second in range(self.GRID_LENGTH_IN_SEC + 1):
+            x1 = second * self.pixels_per_second
+            self.canvas.create_line(
+                x1, 0, x1, self.TIMELINE_BOX_HEIGHT + 40, fill="gray"
+            )
+            self.canvas.create_text(
+                x1,
+                self.TIMELINE_BOX_HEIGHT + 40,
+                text=str(
+                    second,
+                ),
+                anchor="n",
+                font=("Arial", 10),
+            )
+
+    def preview_reset(self):
+        self.preview_paused = True
+        self.user_seeking = False
+        self.frames = []
+        self.frame_timestamps = []
+        self.current_frame_index = 0
 
     def _round_timestamp_with_pixels(self, value):
         return round(value / self.pixels_per_second, 1)
@@ -174,12 +258,9 @@ class InstagramReelCreatorGUI:
         self.move_all_components(self.selected_box_id, dx, data)
 
         # Update timing
-        x1, _, _, _ = self.canvas.coords(self.selected_box_id)
+        x1 = self.canvas.coords(self.selected_box_id)[0]  # only x coord
         new_start = round(x1 / self.pixels_per_second, 1)
         duration = data[self.TIMELINE_END_STR] - data[self.TIMELINE_START_STR]
-        # TODO:
-        # update also video time
-        # if move update only time line position, not video start end
         data[self.TIMELINE_START_STR] = new_start
         data[self.TIMELINE_END_STR] = round(new_start + duration, 1)
         self.update_text(self.selected_box_id)
@@ -215,24 +296,6 @@ class InstagramReelCreatorGUI:
                 f"Updated config saved to:\n{out_path}",
             )
         self.config_path.set(out_path)
-
-    def create_timeline_grid(self):
-        # Draw grid
-
-        for second in range(self.GRID_LENGTH_IN_SEC + 1):
-            x1 = second * self.pixels_per_second
-            self.canvas.create_line(
-                x1, 0, x1, self.TIMELINE_BOX_HEIGHT + 40, fill="gray"
-            )
-            self.canvas.create_text(
-                x1,
-                self.TIMELINE_BOX_HEIGHT + 40,
-                text=str(
-                    second,
-                ),
-                anchor="n",
-                font=("Arial", 10),
-            )
 
     def make_resizable(self, left_handle, right_handle, box_id):
         def resize_left(event):
@@ -340,8 +403,6 @@ class InstagramReelCreatorGUI:
                 return  # block move if it overlaps
 
             self.move_all_components(box_id, dx, data)
-            # TODO:
-            # update also video time
             data[self.TIMELINE_START_STR] = new_start
             data[self.TIMELINE_END_STR] = new_end
             self.update_text(box_id)
@@ -373,11 +434,11 @@ class InstagramReelCreatorGUI:
             config_data = pars_config(config_path)
             self.canvas.delete("all")
             self.timeline_data = {}
-            x = 0  # start offset
+            x = self.ZERO_OFFSET  # start offset
             y = 20
 
-            start = 0
-            end = 0
+            start = self.ZERO_OFFSET
+            end = self.ZERO_OFFSET
             for filename, info in config_data.items():
                 # we need to show grid with 1 second resolution and duration which part of given file is takes
                 start += info.start
@@ -420,6 +481,8 @@ class InstagramReelCreatorGUI:
                     fill="#666",
                 )
 
+                # TODO:
+                # create data structure that has field "preview render ready"
                 self.timeline_data[rect] = {
                     "filename": filename,
                     self.TIMELINE_START_STR: start,
@@ -458,7 +521,103 @@ class InstagramReelCreatorGUI:
             self.config_path.set(path)
             self.draw_timeline()
 
-    def run_main_script(self):
+    def render_video_preview(self):
+        self.preview_reset()
+        self.run_main_script(True)
+
+    def play_video_on_canvas(self, video_path_dir="preview"):
+        # TODO:
+        # 1. run on the separated thread
+        # 2. On slider move stop video
+        # 3. On slider not touch start
+        # 4. Don't render files that don't need rerender
+        # 5. Add option to detach window with preview
+
+        # Load all frames and timestamps
+        # Skip loading if already loaded
+        if len(self.frames) == 0:
+            # Gather and sort all video files
+            video_files = sorted(
+                [
+                    os.path.join(video_path_dir, f)
+                    for f in os.listdir(video_path_dir)
+                    if f.lower().endswith((".mp4", ".avi", ".mov"))
+                ]
+            )
+
+            if not video_files:
+                print("No video files found.")
+                return
+            self.current_frame_index = 0
+
+            for video_path in video_files:
+                cap = cv2.VideoCapture(video_path)
+                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+                for i in range(frame_count):
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    resized = cv2.resize(
+                        frame, (self.PREVIEW_WIDTH, self.PREVIEW_HEIGHT)
+                    )
+                    self.frames.append(resized)
+                    self.frame_timestamps.append(len(self.frames) / self.PREVIEW_FPS)
+
+                cap.release()
+
+        if not hasattr(self, "preview_seek"):
+            self.preview_seek = ttk.Scale(
+                self.frame_preview,
+                from_=0,
+                to=len(self.frames) - 1,
+                orient="horizontal",
+                command=self.seek_frame,
+            )
+            self.preview_seek.pack(side="bottom", fill="x", padx=10)
+
+        # Start playback
+        self.playback_loop()
+
+    def render_one_frame(self):
+        frame = self.frames[self.current_frame_index]
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img = ImageTk.PhotoImage(Image.fromarray(rgb))
+        self.preview_canvas.create_image(0, 0, anchor="nw", image=img)
+        self.preview_canvas.image = img  # prevent GC
+
+    def playback_loop(self):
+        if len(self.frames) == 0 or self.preview_paused:
+            return
+
+        if self.current_frame_index >= len(self.frames):
+            return  # End of video
+
+        self.preview_seek.set(self.current_frame_index)
+        self.update_time_label()
+        self.current_frame_index += 1
+
+        self.root.after(int(1000 / self.PREVIEW_FPS), self.playback_loop)
+
+    def update_time_label(self):
+        current_sec = self.current_frame_index / self.PREVIEW_FPS
+        total_sec = len(self.frames) / self.PREVIEW_FPS
+        self.preview_time_label.config(
+            text=f"{format_time(current_sec)} / {format_time(total_sec)}"
+        )
+
+    def toggle_play_pause(self):
+        self.preview_paused = not self.preview_paused
+        self.play_pause_button.config(text="Play" if self.preview_paused else "Pause")
+        if not self.preview_paused:
+            self.play_video_on_canvas()
+
+    def seek_frame(self, val):
+        self.current_frame_index = int(float(val))
+        self.update_time_label()
+        self.render_one_frame()
+
+    def run_main_script(self, preview: bool = False):
         if not self.config_path.get() or not self.media_dir.get():
             messagebox.showerror(
                 "Error",
@@ -468,10 +627,11 @@ class InstagramReelCreatorGUI:
 
         self.log_output.delete("1.0", tk.END)
         self.append_log("Starting reel creation...")
+        threading.Thread(
+            target=self.execute_script, args=(preview,), daemon=True
+        ).start()
 
-        threading.Thread(target=self.execute_script, daemon=True).start()
-
-    def execute_script(self):
+    def execute_script(self, preview):
         try:
             # Setup stdout/stderr redirection
             stdout_redirector = TextRedirector(self.log_output)
@@ -495,9 +655,7 @@ class InstagramReelCreatorGUI:
             with redirect_stdout(stdout_redirector), redirect_stderr(stderr_redirector):
                 json_file = pars_config(self.config_path.get())
                 create_instagram_reel(
-                    json_file,
-                    self.media_dir.get(),
-                    "test_output.mp4",
+                    json_file, self.media_dir.get(), "test_output.mp4", preview
                 )
 
             self.append_log("✅ Reel creation finished.\n")
@@ -513,5 +671,6 @@ class InstagramReelCreatorGUI:
 
 if __name__ == "__main__":
     root = ThemedTk(themename="journal")  # 'cosmo', 'journal', 'superhero'
+
     app = InstagramReelCreatorGUI(root)
     root.mainloop()

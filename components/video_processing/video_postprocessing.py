@@ -1,6 +1,9 @@
 import logging
 import os
+from tqdm import tqdm
+import threading
 
+# from moviepy.editor import concatenate_videoclips
 from components.video_processing.video_processing_utils import get_codec
 from utils.data_structures import LoadedVideo
 from moviepy.video.VideoClip import ColorClip
@@ -13,6 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(message)s")
 
 class VideoPostProcessing:
     OUTPUT_FPS = 30
+    PREVIEW_FOLDER = "preview"
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -67,7 +71,37 @@ class VideoPostProcessing:
             final_clip = transition(final_clip, clips[i].clip, duration=1)
         return final_clip
 
-    def run(self, output_path: str, clips: list[LoadedVideo]):
+    def render_clip(self, index, clip, codec, fps):
+        output_file = os.path.join(self.PREVIEW_FOLDER, f"preview_{index}.mp4")
+        clip.write_videofile(
+            output_file,
+            codec=codec,
+            audio_codec="aac",
+            threads=max(1, os.cpu_count() - 2),
+            fps=fps,
+            logger=None,  # bar
+        )
+        clip.close()
+
+    def preview(self, clips: list[LoadedVideo]):
+        os.makedirs(self.PREVIEW_FOLDER, exist_ok=True)
+        codec = get_codec()
+        threads = []
+
+        for index, c in enumerate(clips, 1):
+            resized_clip = self.resize_and_center(c).clip
+            thread = threading.Thread(
+                target=self.render_clip,
+                args=(index, resized_clip, codec, self.OUTPUT_FPS),
+            )
+            thread.start()
+            threads.append(thread)
+
+        # Optional: Wait for all threads to finish
+        for thread in tqdm(threads, desc="Rendering previews"):
+            thread.join()
+
+    def final_render(self, output_path: str, clips: list[LoadedVideo]):
         resized_clips_list = [self.resize_and_center(c) for c in clips]
         final_clip = self.apply_transitions(resized_clips_list)
         # final_clip = concatenate_videoclips(final_clips, method="compose")
